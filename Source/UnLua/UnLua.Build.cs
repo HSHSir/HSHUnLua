@@ -25,7 +25,14 @@ public class UnLua : ModuleRules
 {
     public UnLua(ReadOnlyTargetRules Target) : base(Target)
     {
+        // bEnforceIWYU was deprecated in UE5.2 in favour of IWYUSupport and is
+        // gone from ModuleRules in UE5.8. IWYUSupport.None is the exact
+        // equivalent of the previous bEnforceIWYU = false.
+#if UE_5_2_OR_LATER
+        IWYUSupport = IWYUSupport.None;
+#else
         bEnforceIWYU = false;
+#endif
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
         PublicIncludePaths.AddRange(
@@ -65,12 +72,19 @@ public class UnLua : ModuleRules
             PrivateDependencyModuleNames.Add("DirectoryWatcher");
         }
 
-        var projectDir = Target.ProjectFile.Directory;
-        var configFilePath = projectDir + "/Config/DefaultUnLuaEditor.ini";
-        var configFileReference = new FileReference(configFilePath);
-        var configFile = FileReference.Exists(configFileReference) ? new ConfigFile(configFileReference) : new ConfigFile();
-        var config = new ConfigHierarchy(new[] { configFile });
+        ConfigHierarchy config;
         const string section = "/Script/UnLuaEditor.UnLuaEditorSettings";
+        
+        // UE5.8: Use ConfigCache.ReadHierarchy instead of direct ConfigHierarchy construction
+        if (Target.ProjectFile != null)
+        {
+            config = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, Target.ProjectFile.Directory, Target.Platform);
+        }
+        else
+        {
+            // Fallback for targets without project file (engine modules)
+            config = new ConfigHierarchy(new ConfigFile[] { }, null);
+        }
 
         Action<string, string, bool> loadBoolConfig = (key, macro, defaultValue) =>
         {

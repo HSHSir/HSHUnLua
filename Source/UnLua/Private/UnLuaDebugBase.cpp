@@ -64,7 +64,9 @@ namespace UnLua
         case LUA_TNUMBER:
             if (lua_isinteger(L, Index))
             {
-                ReadableValue = FString::Printf(TEXT("%d"), lua_tointeger(L, Index));
+                // lua_tointeger returns lua_Integer (64-bit); %d would truncate it
+                // and trips the compile-time format string validation in UE5.8.
+                ReadableValue = FString::Printf(TEXT("%lld"), static_cast<long long>(lua_tointeger(L, Index)));
             }
             else
             {
@@ -226,7 +228,7 @@ namespace UnLua
         if (ClassNamePtr)
         {
             FString ClassName(ClassNamePtr);
-            UStruct *Struct = FindObject<UStruct>(ANY_PACKAGE, *ClassName + 1);
+            UStruct *Struct = UNLUA_FIND_OBJECT(UStruct, *ClassName + 1);
             if (Struct)
             {
                 // the userdata is a struct instance
@@ -484,7 +486,9 @@ namespace UnLua
                     // UClass
                     FClassProperty *ClassProperty = (FClassProperty*)ObjectProperty;
                     UClass *Class = Cast<UClass>(ObjectProperty->GetPropertyValue(ValuePtr));
-                    UClass *MetaClass = Class ? Class : ClassProperty->MetaClass;
+                    // UE5.8: MetaClass is a TObjectPtr<UClass>; unwrap so both
+                    // operands of the conditional have the same type.
+                    UClass *MetaClass = Class ? Class : ClassProperty->MetaClass.Get();
                     if (MetaClass == UClass::StaticClass())
                     {
                         ReadableValue = FString::Printf(TEXT("UClass*: 0x%p"), Class);
@@ -498,7 +502,9 @@ namespace UnLua
                 {
                     // UObject
                     UObject *Object = ObjectProperty->GetPropertyValue(ValuePtr);
-                    UClass *Class = Object ? Object->GetClass() : ObjectProperty->PropertyClass;
+                    // UE5.8: PropertyClass is a TObjectPtr<UClass>; unwrap so both
+                    // operands of the conditional have the same type.
+                    UClass *Class = Object ? Object->GetClass() : ObjectProperty->PropertyClass.Get();
                     ReadableValue = FString::Printf(TEXT("%s%s* (%s): 0x%p"), Class->GetPrefixCPP(), *Class->GetName(), Object ? *Object->GetName() : TEXT(""), Object);
                     BuildFromUStruct(Class, Object, Object);
                 }

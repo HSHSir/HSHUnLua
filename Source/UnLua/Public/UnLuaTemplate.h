@@ -15,6 +15,7 @@
 #pragma once
 
 #include "CoreUObject.h"
+#include "UnLuaCompatibility.h"
 #include <type_traits>
 
 namespace UnLua
@@ -27,6 +28,15 @@ namespace UnLua
     template <class T> struct TIsCopyConstructible { enum { Value = std::is_copy_constructible<T>::value }; };
     template <class T> struct TIsDestructible { enum { Value = std::is_destructible<T>::value }; };
 
+    // UE5.7+/5.8 removed TChooseClass and TIsTriviallyDestructible from the
+    // engine (ChooseClass.h / IsTriviallyDestructible.h are now deprecated
+    // stubs). UnLua still refers to them, so local equivalents are restored
+    // here, matching the upstream UE5.8 adaptation.
+    template <bool Predicate, typename TrueClass, typename FalseClass> struct TChooseClass;
+    template <typename T> struct TIsTriviallyDestructible { enum { Value = std::is_trivially_destructible_v<T> }; };
+    template <typename TrueClass, typename FalseClass> struct TChooseClass<true, TrueClass, FalseClass> { typedef TrueClass Result; };
+    template <typename TrueClass, typename FalseClass> struct TChooseClass<false, TrueClass, FalseClass> { typedef FalseClass Result; };
+
 
     /**
      * Traits class which tests if a type has equality operator
@@ -38,7 +48,14 @@ namespace UnLua
         template<class T1, class T2>
         static int32 Identical(...);
     };
-    template<typename T1, typename T2 = T1> struct THasEqualityOperator { enum { Value = TIsSame<decltype(FHasEqualityOperatorImpl::Identical<T1, T2>(nullptr)), bool>::Value }; };
+    template<typename T1, typename T2 = T1> struct THasEqualityOperator
+    {
+        enum
+        {
+            // TIsSame was removed in UE5.2; use the standard library trait.
+            Value = std::is_same<decltype(FHasEqualityOperatorImpl::Identical<T1, T2>(nullptr)), bool>::value
+        };
+    };
 
 
     /**
@@ -80,7 +97,8 @@ namespace UnLua
     template <typename T> struct TArgTypeTraits
     {
         typedef typename TDecay<T>::Type RT;
-        typedef typename TChooseClass<TIsPrimitiveTypeOrPointer<RT>::Value, RT, typename TRemoveCV<T>::Type>::Result Type;
+        // TRemoveCV was removed in UE5.2; use the standard library trait.
+        typedef typename TChooseClass<TIsPrimitiveTypeOrPointer<RT>::Value, RT, typename std::remove_cv<T>::type>::Result Type;
     };
     
     

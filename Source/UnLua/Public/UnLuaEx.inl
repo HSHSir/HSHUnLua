@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 #include "UnLuaDebugBase.h"
+#include "UnLuaCompatibility.h"
 
 namespace UnLua
 {
@@ -48,6 +49,12 @@ namespace UnLua
     template <> struct TTypeIntelliSense<FString> { static FString GetName() { return TEXT("string"); } };
     template <> struct TTypeIntelliSense<FName> { static FString GetName() { return TEXT("string"); } };
     template <> struct TTypeIntelliSense<FText> { static FString GetName() { return TEXT("string"); } };
+    // FTextKey stopped being a USTRUCT in UE5.8 (it no longer provides
+    // StaticStruct()), but UnLua::TType<T> would still try to resolve it via
+    // TScriptStructTraits when generating IntelliSense for FText::FromStringTable.
+    // Map it directly to a plain string so the generic path is never taken.
+    template <> struct TTypeIntelliSense<FTextKey> { static FString GetName() { return TEXT("string"); } };
+    template <> struct TScriptStructTraits<FTextKey> { static UScriptStruct* Get() { return nullptr; } };
     template <typename T> struct TTypeIntelliSense<TSubclassOf<T>> { static FString GetName() { return FString::Printf(TEXT("TSubclassOf<%s>"), *TTypeIntelliSense<T>::GetName()); } };
     template <typename T> struct TTypeIntelliSense<TSoftClassPtr<T>> { static FString GetName() { return FString::Printf(TEXT("TSoftClassPtr<%s>"), *TTypeIntelliSense<T>::GetName()); } };
     template <typename T> struct TTypeIntelliSense<TSoftObjectPtr<T>> { static FString GetName() { return FString::Printf(TEXT("TSoftObjectPtr<%s>"), *TTypeIntelliSense<T>::GetName()); } };
@@ -208,7 +215,8 @@ namespace UnLua
         static int32 Invoke(lua_State *L, const TFunction<RetType(ArgType...)> &Func, TTuple<typename TArgTypeTraits<ArgType>::Type...> &Args, TIndices<N...> ParamIndices)
         {
             int32 Num = 0;
-            typename TRemoveConst<RetType>::Type *RetValPtr = lua_gettop(L) > sizeof...(ArgType) ? UnLua::Get(L, sizeof...(ArgType) + 1, TType<typename TRemoveConst<RetType>::Type*>()) : nullptr;
+            // TRemoveConst was removed from the engine; use the std trait.
+            std::remove_cv_t<RetType> *RetValPtr = lua_gettop(L) > sizeof...(ArgType) ? UnLua::Get(L, sizeof...(ArgType) + 1, TType<std::remove_cv_t<RetType>*>()) : nullptr;
             if (RetValPtr)
             {
                 *RetValPtr = UnLua::Invoke(Func, Args, typename TZeroBasedIndices<sizeof...(ArgType)>::Type());

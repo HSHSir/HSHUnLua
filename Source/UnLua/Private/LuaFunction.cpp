@@ -18,6 +18,7 @@
 #include "LuaFunction.h"
 #include "UnLuaModule.h"
 #include "ReflectionUtils/PropertyDesc.h"
+#include "UObject/MetaData.h"
 
 static constexpr auto RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
 static auto OverriddenSuffix = FUTF8ToTCHAR("__Overridden");
@@ -111,7 +112,12 @@ bool ULuaFunction::Override(UFunction* Function, UClass* Outer, FName NewName)
         LuaFunction->SetSuperStruct(Function);
 
 #if WITH_EDITOR
+#if ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 8)
     UMetaData::CopyMetadata(Function, LuaFunction);
+#else
+    // UMetaData itself was deprecated in UE5.8; metadata now lives on FMetaData.
+    FMetaData::CopyMetadata(Function, LuaFunction);
+#endif
     Function->RemoveMetaData(NAME_CallInEditor);
 #endif
 

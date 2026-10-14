@@ -19,7 +19,12 @@ public class UnLuaEditor : ModuleRules
 {
     public UnLuaEditor(ReadOnlyTargetRules Target) : base(Target)
     {
+        // See UnLua.Build.cs for the rationale behind this switch.
+#if UE_5_2_OR_LATER
+        IWYUSupport = IWYUSupport.None;
+#else
         bEnforceIWYU = false;
+#endif
 
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
@@ -60,6 +65,9 @@ public class UnLuaEditor : ModuleRules
                 "Engine",
                 "Json",
                 "UnrealEd",
+                // UE5.8 no longer re-exports AssetRegistry through UnrealEd, and
+                // AssetRegistryModule.h moved under the AssetRegistry/ subfolder.
+                "AssetRegistry",
 #if UE_5_0_OR_LATER
                 "DeveloperToolSettings",
 #endif

@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 #include "EnumDesc.h"
+#include "UnLuaCompatibility.h"
 
 FEnumDesc::FEnumDesc(UEnum* InEnum)
     : Enum(InEnum)
@@ -27,7 +28,7 @@ void FEnumDesc::Load()
     if (Enum.IsValid())
         return;
 
-    Enum = FindObject<UEnum>(ANY_PACKAGE, *EnumName);
+    Enum = UNLUA_FIND_OBJECT(UEnum, *EnumName);
     if (!Enum.IsValid())
         Enum = LoadObject<UEnum>(nullptr, *EnumName);
 

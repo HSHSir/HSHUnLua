@@ -58,13 +58,14 @@ namespace UnLua
             return;
         }
 
-        const auto& Format = TEXT(R"(
+        // UE5.8 validates format strings at compile time, so the literal has to
+        // be passed to Printf directly rather than through a variable.
+        const auto Chunk = FString::Printf(TEXT(R"(
             local name = "%s"
             package.loaded[name] = nil
             collectgarbage("collect")
             require(name)
-        )");
-        const auto Chunk = FString::Printf(Format, *Args[0]);
+        )"), *Args[0]);
         Env->DoString(Chunk);
     }
 

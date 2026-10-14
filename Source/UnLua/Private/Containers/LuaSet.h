@@ -198,7 +198,9 @@ public:
      */
     FORCEINLINE void Rehash()
     {
-        Set->Rehash(SetLayout, [=](const void* Src) { return ElementInterface->GetValueTypeHash(Src); });
+        // C++20 (enforced by UE5.8) deprecates implicit 'this' capture via [=]
+        // (MSVC C4855). Capture 'this' explicitly.
+        Set->Rehash(SetLayout, [this](const void* Src) { return ElementInterface->GetValueTypeHash(Src); });
     }
 
     /**

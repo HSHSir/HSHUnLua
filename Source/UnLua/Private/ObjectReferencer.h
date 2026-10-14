@@ -49,6 +49,9 @@ namespace UnLua
 
         virtual void AddReferencedObjects(FReferenceCollector& Collector) override
         {
+            // UE5.8 deprecates the raw UObject* overload of AddReferencedObjects
+            // (it can crash when incremental GC is enabled). Store TObjectPtr so
+            // the collector takes the supported overload.
             Collector.AddReferencedObjects(ReferencedObjects);
         }
 
@@ -58,7 +61,7 @@ namespace UnLua
         }
 
     private:
-        TSet<UObject*> ReferencedObjects;
+        TSet<TObjectPtr<UObject>> ReferencedObjects;
         FString Name = TEXT("FObjectReferencer");
     };
 }

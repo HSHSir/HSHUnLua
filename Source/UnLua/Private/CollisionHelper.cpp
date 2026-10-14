@@ -22,9 +22,9 @@ UEnum* FCollisionHelper::TraceTypeQueryEnum;
 
 void FCollisionHelper::Initialize()
 {
-    CollisionChannelEnum = FindObject<UEnum>(ANY_PACKAGE, TEXT("ECollisionChannel"));
-    ObjectTypeQueryEnum = FindObject<UEnum>(ANY_PACKAGE, TEXT("EObjectTypeQuery"));
-    TraceTypeQueryEnum = FindObject<UEnum>(ANY_PACKAGE, TEXT("ETraceTypeQuery"));
+    CollisionChannelEnum = UNLUA_FIND_OBJECT(UEnum, TEXT("ECollisionChannel"));
+    ObjectTypeQueryEnum = UNLUA_FIND_OBJECT(UEnum, TEXT("EObjectTypeQuery"));
+    TraceTypeQueryEnum = UNLUA_FIND_OBJECT(UEnum, TEXT("ETraceTypeQuery"));
     check(CollisionChannelEnum && ObjectTypeQueryEnum && TraceTypeQueryEnum);
 
     if (ChannelNames.Num() > 0)

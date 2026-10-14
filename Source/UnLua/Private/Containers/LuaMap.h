@@ -292,7 +292,9 @@ public:
      */
     FORCEINLINE void Rehash()
     {
-        Map->Rehash(MapLayout, [=](const void* Src) { return KeyInterface->GetValueTypeHash(Src); });
+        // C++20 (enforced by UE5.8) deprecates implicit 'this' capture via [=]
+        // (MSVC C4855). Capture 'this' explicitly.
+        Map->Rehash(MapLayout, [this](const void* Src) { return KeyInterface->GetValueTypeHash(Src); });
     }
 
     /**

@@ -52,6 +52,7 @@ public:
     TSubclassOf<ULuaModuleLocator> ModuleLocatorClass = ULuaModuleLocator::StaticClass();
 
     /** List of classes to bind on startup. */
-    UPROPERTY(config, EditAnywhere, Category=Runtime, meta = (MetaClass="Object", AllowAbstract="True", DisplayName = "List of classes to bind on startup"))
+    // UE5.7+ requires metadata class references to use full long path names.
+    UPROPERTY(config, EditAnywhere, Category=Runtime, meta = (MetaClass="/Script/CoreUObject.Object", AllowAbstract="True", DisplayName = "List of classes to bind on startup"))
     TArray<FSoftClassPath> PreBindClasses;
 };

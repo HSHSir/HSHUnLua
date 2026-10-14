@@ -16,6 +16,7 @@
 
 #include "CoreUObject.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Misc/EngineVersionComparison.h"
 
 #if ENGINE_MAJOR_VERSION <= 4 && ENGINE_MINOR_VERSION < 19
 #define DEFINE_FUNCTION(func) void func( FFrame& Stack, RESULT_DECL )
@@ -152,3 +153,45 @@ struct TMulticastDelegateTraits<FMulticastScriptDelegate>
         return (FMulticastScriptDelegate*)PropertyValue;
     }
 };
+
+// UE5.5+ ElementSize API adaptation
+#if UE_VERSION_OLDER_THAN(5, 5, 0)
+    #define UNLUA_GET_ELEMENT_SIZE(Property) ((Property)->ElementSize)
+#else
+    #define UNLUA_GET_ELEMENT_SIZE(Property) ((Property)->GetElementSize())
+#endif
+
+// UE5.7+ ANY_PACKAGE removal adaptation.
+// ANY_PACKAGE is deprecated since 5.1 and fully removed in 5.7+.
+// FindFirstObject performs a global search by name, which matches the old
+// "search in any package" semantics. The engine exposes no
+// FindFirstObjectChecked, so an asserting wrapper is provided here to preserve
+// the original FindObjectChecked behaviour.
+#if !UE_VERSION_OLDER_THAN(5, 7, 0)
+namespace UnLua
+{
+    namespace Compat
+    {
+        template <typename T>
+        T* FindFirstObjectChecked(FStringView Name)
+        {
+            T* Result = FindFirstObject<T>(Name);
+            checkf(Result, TEXT("UnLua: object '%s' was not found"), *FString(Name));
+            return Result;
+        }
+    }
+}
+#endif
+
+#if UE_VERSION_OLDER_THAN(5, 7, 0)
+    #define UNLUA_FIND_OBJECT(Type, Name) FindObject<Type>(ANY_PACKAGE, Name)
+    #define UNLUA_FIND_OBJECT_CHECKED(Type, Name) FindObjectChecked<Type>(ANY_PACKAGE, Name)
+#else
+    #define UNLUA_FIND_OBJECT(Type, Name) FindFirstObject<Type>(Name)
+    #define UNLUA_FIND_OBJECT_CHECKED(Type, Name) UnLua::Compat::FindFirstObjectChecked<Type>(Name)
+#endif
+
+// NOTE: the UE5.7+/5.8 removals of TChooseClass / TIsTriviallyDestructible are
+// handled inside UnLuaTemplate.h (in namespace UnLua), and TIsSame / TRemoveCV
+// were removed back in UE5.2 and are replaced by the standard library traits at
+// their call sites. No global shims are needed here.

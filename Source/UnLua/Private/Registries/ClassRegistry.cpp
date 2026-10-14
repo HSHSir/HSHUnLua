@@ -288,11 +288,11 @@ namespace UnLua
         FString Name = UTF8_TO_TCHAR(InName);
 
         // find candidates in memory
-        UField* Ret = FindObject<UClass>(ANY_PACKAGE, *Name);
+        UField* Ret = UNLUA_FIND_OBJECT(UClass, *Name);
         if (!Ret)
-            Ret = FindObject<UScriptStruct>(ANY_PACKAGE, *Name);
+            Ret = UNLUA_FIND_OBJECT(UScriptStruct, *Name);
         if (!Ret)
-            Ret = FindObject<UEnum>(ANY_PACKAGE, *Name);
+            Ret = UNLUA_FIND_OBJECT(UEnum, *Name);
 
         // load candidates if not found
         if (!Ret)

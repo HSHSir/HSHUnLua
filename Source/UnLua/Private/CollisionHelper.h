@@ -15,6 +15,7 @@
 #pragma once
 
 #include "EngineMinimal.h"
+#include "UnLuaCompatibility.h"
 
 class FCollisionHelper
 {

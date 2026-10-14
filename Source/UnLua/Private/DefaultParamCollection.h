@@ -15,6 +15,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UnLuaCompatibility.h"
 
 class IParamValue
 {
@@ -53,7 +54,7 @@ public:
     {
         if (!bInitialized)
         {
-            UEnum* Enum = FindObjectChecked<UEnum>(ANY_PACKAGE, *TypeName);
+            UEnum* Enum = UNLUA_FIND_OBJECT_CHECKED(UEnum, *TypeName);
             Value = Enum->GetValueByIndex(Index);
             bInitialized = true;
         }

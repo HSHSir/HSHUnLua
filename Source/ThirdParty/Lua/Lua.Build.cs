@@ -31,8 +31,18 @@ public class Lua : ModuleRules
     public Lua(ReadOnlyTargetRules Target) : base(Target)
     {
         Type = ModuleType.External;
+        // These warning settings moved into CppCompileWarningSettings in
+        // UE5.5/UE5.6; the flat ModuleRules properties are obsolete.
+#if UE_5_6_OR_LATER
+        CppCompileWarningSettings.UndefinedIdentifierWarningLevel = WarningLevel.Off;
+        CppCompileWarningSettings.ShadowVariableWarningLevel = WarningLevel.Off;
+#elif UE_5_5_OR_LATER
+        UndefinedIdentifierWarningLevel = WarningLevel.Off;
+        ShadowVariableWarningLevel = WarningLevel.Off;
+#else
         bEnableUndefinedIdentifierWarnings = false;
         ShadowVariableWarningLevel = WarningLevel.Off;
+#endif
 
         m_LuaVersion = "5.4.3";
         m_Config = GetConfigName();
@@ -102,8 +112,11 @@ public class Lua : ModuleRules
         if (NDKRoot == null)
             throw new BuildException("can't find NDKROOT");
 
-        var toolchain = AndroidExports.CreateToolChain(Target.ProjectFile);
-        var NdkApiLevel = toolchain.GetNdkApiLevelInt(21);
+        // AndroidExports.CreateToolChain and UEBuildPlatform are no longer
+        // publicly reachable in UE5.8, so the NDK API level is resolved the same
+        // way AndroidToolChain.GetNdkApiLevel() does: read it from the engine
+        // Android SDK settings, honouring any project-level override.
+        var NdkApiLevel = ResolveAndroidNdkApiLevel();
 
         var abiNames = new[] { "armeabi-v7a", "arm64-v8a", "x86_64" };
         foreach (var abiName in abiNames)
@@ -188,14 +201,16 @@ public class Lua : ModuleRules
 
     private void BuildForMac()
     {
-        var abiName = Target.Architecture;
+        // Target.Architecture became an UnrealArch struct in UE5.8 instead of a
+        // string, so it must be converted explicitly.
+        var abiName = Target.Architecture.ToString();
         var libFile = GetLibraryPath(abiName);
         if (!File.Exists(libFile))
         {
             EnsureDirectoryExists(libFile);
             var args = new Dictionary<string, string>
             {
-                { "CMAKE_OSX_ARCHITECTURES", Target.Architecture }
+                { "CMAKE_OSX_ARCHITECTURES", abiName }
             };
             var buildDir = CMake(args);
             var buildFile = Path.Combine(buildDir, m_LibName);
@@ -259,6 +274,57 @@ public class Lua : ModuleRules
     }
 
     #endregion
+
+    /// <summary>
+    /// Resolves the Android NDK API level the same way the engine's
+    /// AndroidToolChain does: read NDKAPILevel from the engine Android SDK
+    /// settings, honouring a project-level NDKAPILevelOverride, and fall back
+    /// to the newest platform advertised by the installed NDK when it is "latest".
+    /// </summary>
+    private int ResolveAndroidNdkApiLevel()
+    {
+        // MinimumNDKAPILevel in UE5.8's AndroidToolChain.
+        const int MinimumNdkApiLevel = 26;
+
+        string NdkLevel = null;
+        try
+        {
+            var Ini = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine,
+                DirectoryReference.FromFile(Target.ProjectFile), UnrealTargetPlatform.Android);
+
+            string EngineLevel;
+            if (Ini.GetString("/Script/AndroidPlatformEditor.AndroidSDKSettings", "NDKAPILevel", out EngineLevel))
+                NdkLevel = EngineLevel;
+
+            string ProjectOverride;
+            if (Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "NDKAPILevelOverride", out ProjectOverride)
+                && !string.IsNullOrWhiteSpace(ProjectOverride))
+                NdkLevel = ProjectOverride.Trim();
+        }
+        catch (Exception)
+        {
+            // Configuration may be unavailable when generating project files;
+            // fall through to the minimum so the build still proceeds.
+            return MinimumNdkApiLevel;
+        }
+
+        // "latest" means the highest platform installed in the NDK. Parse the
+        // numeric suffix of the level string, mirroring GetNdkApiLevelInt().
+        int Level = MinimumNdkApiLevel;
+        if (!string.IsNullOrEmpty(NdkLevel))
+        {
+            var Value = NdkLevel;
+            var DashIndex = Value.LastIndexOf('-');
+            if (DashIndex >= 0 && DashIndex + 1 < Value.Length)
+                Value = Value.Substring(DashIndex + 1);
+
+            int Parsed;
+            if (int.TryParse(Value, out Parsed) && Parsed > Level)
+                Level = Parsed;
+        }
+
+        return Level;
+    }
 
     private string CMake(Dictionary<string, string> extraArgs = null)
     {
@@ -422,11 +488,19 @@ public class Lua : ModuleRules
                 return "Ninja";
             if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
             {
-                if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2019)
-                    return "Visual Studio 16 2019";
 #if UE_4_27_OR_LATER
                 if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2022)
                     return "Visual Studio 17 2022";
+#endif
+                // WindowsCompiler.VisualStudio2019 was removed in UE5.4, so the
+                // 2019 branch is only compiled on older engines.
+#if !UE_5_4_OR_LATER
+                if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2019)
+                    return "Visual Studio 16 2019";
+#endif
+#if UE_5_6_OR_LATER
+                if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2026)
+                    return "Visual Studio 18 2026";
 #endif
             }
         }

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and limitations under the License.
 
 #include "UnLuaIntelliSenseGenerator.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "CoreUObject.h"
 #include "UnLua.h"
 #include "UnLuaEditorSettings.h"
@@ -56,7 +56,10 @@ namespace
             return FString();
 
         FString ExportedValue;
-        Property->ExportTextItem(ExportedValue, Value, DefaultValue, const_cast<UObject*>(Object), PPF_None);
+        // UE5.8 split FProperty::ExportTextItem into _Direct / _InContainer
+        // variants. The value pointer here is an in-container pointer, so the
+        // _InContainer overload is the correct one.
+        Property->ExportTextItem_InContainer(ExportedValue, Value, DefaultValue, const_cast<UObject*>(Object), PPF_None);
         ExportedValue.ReplaceInline(TEXT("\r"), TEXT(""));
         ExportedValue.ReplaceInline(TEXT("\n"), TEXT(" "));
         return ExportedValue;
@@ -82,14 +85,18 @@ namespace
             if (!Text.IsEmpty())
                 Description += FString::Printf(TEXT(" Text=\"%s\""), *Text);
 
-            if (TextBlock->Font.FontObject)
-                Description += FString::Printf(TEXT(" Font=%s"), *TextBlock->Font.FontObject->GetPathName());
-            if (TextBlock->Font.Size != 24)
-                Description += FString::Printf(TEXT(" FontSize=%d"), TextBlock->Font.Size);
+            // UE5.1+/5.2+ deprecate direct member access to Font/Brush in favour
+            // of getters; use them so the editor-only IntelliSense path keeps
+            // working on future engine versions.
+            const FSlateFontInfo& FontInfo = TextBlock->GetFont();
+            if (FontInfo.FontObject)
+                Description += FString::Printf(TEXT(" Font=%s"), *FontInfo.FontObject->GetPathName());
+            if (FontInfo.Size != 24)
+                Description += FString::Printf(TEXT(" FontSize=%f"), FontInfo.Size);
         }
         else if (const UImage* Image = Cast<UImage>(Widget))
         {
-            if (const UObject* ResourceObject = Image->Brush.GetResourceObject())
+            if (const UObject* ResourceObject = Image->GetBrush().GetResourceObject())
                 Description += FString::Printf(TEXT(" Resource=%s"), *ResourceObject->GetPathName());
             AppendProperty(Description, Image, TEXT("ColorAndOpacity"));
         }
@@ -196,8 +203,10 @@ void FUnLuaIntelliSenseGenerator::UpdateAll(EUnLuaIntelliSenseScope Scope)
     const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
     FARFilter Filter;
-    Filter.ClassNames.Add(UBlueprint::StaticClass()->GetFName());
-    Filter.ClassNames.Add(UWidgetBlueprint::StaticClass()->GetFName());
+    // UE5.8 asserts on FARFilter::ClassNames (deprecated short names) when the
+    // filter is compiled, and only ClassPaths are used. Set ClassPaths instead.
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
 
     if (Scope != EUnLuaIntelliSenseScope::All)
     {
@@ -269,7 +278,7 @@ void FUnLuaIntelliSenseGenerator::UpdateAll(EUnLuaIntelliSenseScope Scope)
         {
             if (ShouldExport(AssetData, true))
             {
-                UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.ObjectPath.ToString());
+                UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.GetObjectPathString());
                 if (Blueprint)
                 {
                     const FString OutputFile = Export(Blueprint);
@@ -317,8 +326,11 @@ void FUnLuaIntelliSenseGenerator::UpdateAll(EUnLuaIntelliSenseScope Scope)
 
 bool FUnLuaIntelliSenseGenerator::IsBlueprint(const FAssetData& AssetData)
 {
-    const FName AssetClass = AssetData.AssetClass;
-    return AssetClass == UBlueprint::StaticClass()->GetFName() || AssetClass == UWidgetBlueprint::StaticClass()->GetFName();
+    // UE5.8 only populates FAssetData::AssetClassPath (AssetClass is a deprecated
+    // FName that is no longer written on construction), so compare path names.
+    const FTopLevelAssetPath& AssetClassPath = AssetData.AssetClassPath;
+    return AssetClassPath == UBlueprint::StaticClass()->GetClassPathName()
+        || AssetClassPath == UWidgetBlueprint::StaticClass()->GetClassPathName();
 }
 
 bool FUnLuaIntelliSenseGenerator::ShouldExport(const FAssetData& AssetData, bool bLoad)
@@ -638,7 +650,9 @@ bool FUnLuaIntelliSenseGenerator::SaveManifest()
 bool FUnLuaIntelliSenseGenerator::GetPackageFileState(const FAssetData& AssetData, int64& PackageSize, int64& PackageTimestamp)
 {
     FString PackageFilename;
-    if (!FPackageName::DoesPackageExist(AssetData.PackageName.ToString(), nullptr, &PackageFilename))
+    // UE5.8 changed this overload to (LongPackageName, FString* OutFilename,
+    // bool bAllowTextFormats); the old (.., FPackagePath*, FString*) shape is gone.
+    if (!FPackageName::DoesPackageExist(AssetData.PackageName.ToString(), &PackageFilename))
         return false;
 
     IFileManager& FileManager = IFileManager::Get();
@@ -652,7 +666,7 @@ bool FUnLuaIntelliSenseGenerator::GetPackageFileState(const FAssetData& AssetDat
 
 bool FUnLuaIntelliSenseGenerator::ShouldRegenerateAsset(const FAssetData& AssetData) const
 {
-    const FString ObjectPath = AssetData.ObjectPath.ToString();
+    const FString ObjectPath = AssetData.GetObjectPathString();
     const FUnLuaIntelliSenseAssetCache* CacheEntry = AssetCache.Find(ObjectPath);
     if (!CacheEntry || CacheEntry->OutputFile.IsEmpty() || !IFileManager::Get().FileExists(*CacheEntry->OutputFile))
         return true;
@@ -678,7 +692,7 @@ void FUnLuaIntelliSenseGenerator::UpdateAssetCache(const FAssetData& AssetData, 
     if (!GetPackageFileState(AssetData, PackageSize, PackageTimestamp))
         return;
 
-    FUnLuaIntelliSenseAssetCache& CacheEntry = AssetCache.FindOrAdd(AssetData.ObjectPath.ToString());
+    FUnLuaIntelliSenseAssetCache& CacheEntry = AssetCache.FindOrAdd(AssetData.GetObjectPathString());
     CacheEntry.PackageSize = PackageSize;
     CacheEntry.PackageTimestamp = PackageTimestamp;
     CacheEntry.OutputFile = OutputFile;
@@ -746,7 +760,7 @@ void FUnLuaIntelliSenseGenerator::OnAssetRemoved(const FAssetData& AssetData)
     if (!IsBlueprint(AssetData))
         return;
 
-    const FString ObjectPath = AssetData.ObjectPath.ToString();
+    const FString ObjectPath = AssetData.GetObjectPathString();
     if (const FUnLuaIntelliSenseAssetCache* CacheEntry = AssetCache.Find(ObjectPath))
         DeleteOutputFile(CacheEntry->OutputFile);
     else
@@ -776,7 +790,7 @@ void FUnLuaIntelliSenseGenerator::OnAssetUpdated(const FAssetData& AssetData)
     if (!ShouldExport(AssetData, true))
         return;
 
-    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.ObjectPath.ToString());
+    UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetData.GetObjectPathString());
     if (!Blueprint)
         return;
 

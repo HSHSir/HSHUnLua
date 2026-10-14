@@ -384,7 +384,12 @@ void FFunctionDesc::BroadcastMulticastDelegate(lua_State *L, int32 NumParams, in
 
     FFlagArray CleanupFlags;
     void *Params = PreCall(L, NumParams, FirstParamIndex, CleanupFlags);
+#if ENGINE_MAJOR_VERSION < 5 || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 8)
     ScriptDelegate->ProcessMulticastDelegate<UObject>(Params);
+#else
+    // ProcessMulticastDelegate was deprecated in UE5.8 in favour of ProcessDelegate.
+    ScriptDelegate->ProcessDelegate<UObject>(Params);
+#endif
     PostCall(L, NumParams, FirstParamIndex, Params, CleanupFlags);      // !!! have no return values for multi-cast delegates
 }
 

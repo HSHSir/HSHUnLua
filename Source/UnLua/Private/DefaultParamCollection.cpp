@@ -17,7 +17,8 @@
 
 TMap<FName, FFunctionCollection> GDefaultParamCollection;
 
-PRAGMA_DISABLE_OPTIMIZATION
+// PRAGMA_DISABLE_OPTIMIZATION was deprecated in UE5.2; use the new macros.
+UE_DISABLE_OPTIMIZATION
 
 void CreateDefaultParamCollection()
 {
@@ -30,4 +31,4 @@ void CreateDefaultParamCollection()
     }
 }
 
-PRAGMA_ENABLE_OPTIMIZATION
+UE_ENABLE_OPTIMIZATION
