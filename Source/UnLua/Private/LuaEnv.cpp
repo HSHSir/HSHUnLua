@@ -184,13 +184,19 @@ namespace UnLua
         if (bStarted)
             return;
 
+        const auto Guard = GetDeadLoopCheck()->MakeGuard();
+
+        // Load the optional initial module first, so that shared helpers are available to
+        // StartupModuleName and to every module bound to a UObject afterwards.
+        const auto& Setting = *GetDefault<UUnLuaSettings>();
+        TryRequireModule(Setting.InitialModuleName, true);
+
         if (StartupModuleName.IsEmpty())
         {
             bStarted = true;
             return;
         }
 
-        const auto Guard = GetDeadLoopCheck()->MakeGuard();
         lua_pushcfunction(L, ReportLuaCallError);
         lua_getglobal(L, "require");
         lua_pushstring(L, TCHAR_TO_UTF8(*StartupModuleName));
@@ -202,6 +208,42 @@ namespace UnLua
         }
         lua_pcall(L, 2, LUA_MULTRET, -4);
         bStarted = true;
+    }
+
+    bool FLuaEnv::TryRequireModule(const FString& ModuleName, bool bOptional)
+    {
+        if (ModuleName.IsEmpty())
+            return false;
+
+        const int32 Top = lua_gettop(L);
+
+        lua_getglobal(L, "require");
+        if (!lua_isfunction(L, -1))
+        {
+            lua_settop(L, Top);
+            UE_LOG(LogUnLua, Error, TEXT("'require' is not available, failed to load module %s"), *ModuleName);
+            return false;
+        }
+
+        lua_pushstring(L, TCHAR_TO_UTF8(*ModuleName));
+        // no message handler here: the raw error is inspected below, and a missing optional module
+        // must not produce any error output.
+        if (lua_pcall(L, 1, 1, 0) != LUA_OK)
+        {
+            const FString Error = lua_isstring(L, -1)
+                                      ? UTF8_TO_TCHAR(lua_tostring(L, -1))
+                                      : FString(TEXT("<unknown error>"));
+            lua_settop(L, Top);
+
+            if (bOptional && Error.Contains(FString::Printf(TEXT("module '%s' not found"), *ModuleName)))
+                return false; // optional module absent, ignore silently
+
+            UE_LOG(LogUnLua, Error, TEXT("Failed to load lua module %s:\n%s"), *ModuleName, *Error);
+            return false;
+        }
+
+        lua_settop(L, Top);
+        return true;
     }
 
     const FString& FLuaEnv::GetName()

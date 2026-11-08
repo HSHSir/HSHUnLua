@@ -106,9 +106,20 @@ int32 UUnLuaIntelliSenseCommandlet::Main(const FString &Params)
     FString BPKey = TEXT("BP");
     if (ParamsMap.Contains(BPKey) && ParamsMap[BPKey] == TEXT("1"))
     {
+        // Optional scope selector: -Scope=All (default) | Project | ProjectWithoutPlugins
+        EUnLuaIntelliSenseScope Scope = EUnLuaIntelliSenseScope::All;
+        FString ScopeName;
+        if (ParamsMap.Contains(TEXT("Scope")))
+            ScopeName = ParamsMap[TEXT("Scope")];
+
+        if (ScopeName.Equals(TEXT("Project"), ESearchCase::IgnoreCase))
+            Scope = EUnLuaIntelliSenseScope::Project;
+        else if (ScopeName.Equals(TEXT("ProjectWithoutPlugins"), ESearchCase::IgnoreCase))
+            Scope = EUnLuaIntelliSenseScope::ProjectWithoutPlugins;
+
         auto Generator = FUnLuaIntelliSenseGenerator::Get();
         Generator->Initialize();
-        Generator->UpdateAll();
+        Generator->UpdateAll(Scope);
     }
 
     return 0;

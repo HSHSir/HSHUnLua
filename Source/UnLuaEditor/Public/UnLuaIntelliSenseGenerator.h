@@ -93,5 +93,6 @@ private:
     TMap<FString, FUnLuaIntelliSenseAssetCache> AssetCache;
     bool bManifestDirty = false;
     bool bCachedGenerateWidgetLayout = false;
+    bool bCachedGenerateBlueprintStructure = false;
     bool bInitialized;
 };

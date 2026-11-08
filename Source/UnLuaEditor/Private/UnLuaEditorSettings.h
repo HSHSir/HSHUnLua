@@ -58,9 +58,13 @@ public:
     UPROPERTY(config, EditAnywhere, Category = "Coding")
     bool bGenerateIntelliSense = true;
 
-    /** Whether or not append UserWidget layout information to generated IntelliSense files. */
+    /** Whether or not append UserWidget structure (widget tree, layout slots and core properties) to generated IntelliSense files. */
     UPROPERTY(config, EditAnywhere, Category = "Coding", meta = (EditCondition = "bGenerateIntelliSense"))
-    bool bGenerateWidgetLayout = false;
+    bool bGenerateWidgetLayout = true;
+
+    /** Whether or not append Blueprint structure (component tree, class defaults, interfaces and implemented events) to generated IntelliSense files. */
+    UPROPERTY(config, EditAnywhere, Category = "Coding", meta = (EditCondition = "bGenerateIntelliSense"))
+    bool bGenerateBlueprintStructure = true;
 
     /** Pick a method for how lua files are packaged. */
     UPROPERTY(config, EditAnywhere, Category = "Packaging", meta = (defaultValue = 0))

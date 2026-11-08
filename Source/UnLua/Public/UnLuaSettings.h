@@ -32,6 +32,14 @@ public:
     UPROPERTY(Config, EditAnywhere, Category="Runtime")
     FString StartupModuleName = TEXT("");
 
+    /**
+     * Optional module loaded before anything else once a lua env is created, including StartupModuleName and
+     * every module bound to a UObject. It is silently skipped when the file does not exist, so it is safe to
+     * always enable. Leave it empty to disable.
+     */
+    UPROPERTY(Config, EditAnywhere, Category="Runtime")
+    FString InitialModuleName = TEXT("initialmodule");
+
     /** Prevent from infinite loops in lua. Timeout in seconds. */
     UPROPERTY(Config, EditAnywhere, Category="Runtime")
     int32 DeadLoopCheck = 0;

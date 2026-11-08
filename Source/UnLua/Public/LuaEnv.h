@@ -91,6 +91,14 @@ namespace UnLua
 
         bool DoString(const FString& Chunk, const FString& ChunkName = "chunk");
 
+        /**
+         * require() a lua module through the regular searchers.
+         * @param bOptional When true, a missing module (lua raises "module 'X' not found") is silently ignored,
+         *                  while a real error inside the module is still reported. Cache in package.loaded applies.
+         * @return true if the module is loaded (or was already loaded)
+         */
+        bool TryRequireModule(const FString& ModuleName, bool bOptional = false);
+
         virtual void GC();
 
         virtual void HotReload(const TArray<FString>& ModuleNames = {});
